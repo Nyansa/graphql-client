@@ -56,6 +56,19 @@ module GraphQL
       #
       # Returns { "data" => ... , "errors" => ... } Hash.
       def execute(document:, operation_name: nil, variables: {}, context: {})
+        response = execute_raw(document: document,
+                               operation_name: operation_name,
+                               variables: variables,
+                               context: context)
+        case response
+        when Net::HTTPOK, Net::HTTPBadRequest
+          JSON.parse(response.body)
+        else
+          { "errors" => [{ "message" => "#{response.code} #{response.message}" }] }
+        end
+      end
+
+      def execute_raw(document:, operation_name: nil, variables: {}, context: {})
         request = Net::HTTP::Post.new(uri.request_uri)
 
         request.basic_auth(uri.user, uri.password) if uri.user || uri.password
@@ -71,12 +84,7 @@ module GraphQL
         request.body = JSON.generate(body)
 
         response = connection.request(request)
-        case response
-        when Net::HTTPOK, Net::HTTPBadRequest
-          JSON.parse(response.body)
-        else
-          { "errors" => [{ "message" => "#{response.code} #{response.message}" }] }
-        end
+        response
       end
 
       # Public: Extension point for subclasses to customize the Net:HTTP client
